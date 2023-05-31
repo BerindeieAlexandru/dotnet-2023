@@ -8,6 +8,7 @@ namespace Mapster.Rendering;
 
 public struct GeoFeature : BaseShape
 {
+
     public enum GeoFeatureType
     {
         Plain,
@@ -19,32 +20,22 @@ public struct GeoFeature : BaseShape
         Water,
         Residential
     }
-
     public int ZIndex
     {
         get
         {
-            switch (Type)
+            return Type switch
             {
-                case GeoFeatureType.Plain:
-                    return 10;
-                case GeoFeatureType.Hills:
-                    return 12;
-                case GeoFeatureType.Mountains:
-                    return 13;
-                case GeoFeatureType.Forest:
-                    return 11;
-                case GeoFeatureType.Desert:
-                    return 9;
-                case GeoFeatureType.Unknown:
-                    return 8;
-                case GeoFeatureType.Water:
-                    return 40;
-                case GeoFeatureType.Residential:
-                    return 41;
-            }
-
-            return 7;
+                GeoFeatureType.Plain => 10,
+                GeoFeatureType.Hills => 12,
+                GeoFeatureType.Mountains => 13,
+                GeoFeatureType.Forest => 11,
+                GeoFeatureType.Desert => 9,
+                GeoFeatureType.Unknown => 8,
+                GeoFeatureType.Water => 40,
+                GeoFeatureType.Residential => 41,
+                _ => 7
+            };
         }
         set { }
     }
@@ -55,35 +46,18 @@ public struct GeoFeature : BaseShape
 
     public void Render(IImageProcessingContext context)
     {
-        var color = Color.Magenta;
-        switch (Type)
+        var color = Type switch
         {
-            case GeoFeatureType.Plain:
-                color = Color.LightGreen;
-                break;
-            case GeoFeatureType.Hills:
-                color = Color.DarkGreen;
-                break;
-            case GeoFeatureType.Mountains:
-                color = Color.LightGray;
-                break;
-            case GeoFeatureType.Forest:
-                color = Color.Green;
-                break;
-            case GeoFeatureType.Desert:
-                color = Color.SandyBrown;
-                break;
-            case GeoFeatureType.Unknown:
-                color = Color.Magenta;
-                break;
-            case GeoFeatureType.Water:
-                color = Color.LightBlue;
-                break;
-            case GeoFeatureType.Residential:
-                color = Color.LightCoral;
-                break;
-        }
-
+            GeoFeatureType.Plain => Color.LightGreen,
+            GeoFeatureType.Hills => Color.DarkGreen,
+            GeoFeatureType.Mountains => Color.LightGray,
+            GeoFeatureType.Forest => Color.Green,
+            GeoFeatureType.Desert => Color.SandyBrown,
+            GeoFeatureType.Unknown => Color.Magenta,
+            GeoFeatureType.Water => Color.LightBlue,
+            GeoFeatureType.Residential => Color.LightCoral,
+            _ => Color.Magenta
+        };
         if (!IsPolygon)
         {
             var pen = new Pen(color, 1.2f);
@@ -93,61 +67,51 @@ public struct GeoFeature : BaseShape
         {
             context.FillPolygon(color, ScreenCoordinates);
         }
-    }
 
+    }
     public GeoFeature(ReadOnlySpan<Coordinate> c, GeoFeatureType type)
     {
         IsPolygon = true;
         Type = type;
         ScreenCoordinates = new PointF[c.Length];
         for (var i = 0; i < c.Length; i++)
-            ScreenCoordinates[i] = new PointF((float)MercatorProjection.lonToX(c[i].Longitude),
-                (float)MercatorProjection.latToY(c[i].Latitude));
+        {
+            ScreenCoordinates[i] = new PointF(
+                (float)MercatorProjection.lonToX(c[i].Longitude),
+                (float)MercatorProjection.latToY(c[i].Latitude)
+            );
+        }
     }
+
 
     public GeoFeature(ReadOnlySpan<Coordinate> c, MapFeatureData feature)
     {
         IsPolygon = feature.Type == GeometryType.Polygon;
-        var naturalKey = feature.Properties.FirstOrDefault(x => x.Key == "natural").Value;
+        var naturalKey = feature.Properties.FirstOrDefault(x => x.Key == MapFeatureData.Transformer.Natural).Value;
         Type = GeoFeatureType.Unknown;
         if (naturalKey != null)
         {
-            if (naturalKey == "fell" ||
-                naturalKey == "grassland" ||
-                naturalKey == "heath" ||
-                naturalKey == "moor" ||
-                naturalKey == "scrub" ||
-                naturalKey == "wetland")
+            Type = naturalKey switch
             {
-                Type = GeoFeatureType.Plain;
-            }
-            else if (naturalKey == "wood" ||
-                     naturalKey == "tree_row")
-            {
-                Type = GeoFeatureType.Forest;
-            }
-            else if (naturalKey == "bare_rock" ||
-                     naturalKey == "rock" ||
-                     naturalKey == "scree")
-            {
-                Type = GeoFeatureType.Mountains;
-            }
-            else if (naturalKey == "beach" ||
-                     naturalKey == "sand")
-            {
-                Type = GeoFeatureType.Desert;
-            }
-            else if (naturalKey == "water")
-            {
-                Type = GeoFeatureType.Water;
-            }
+                "fell" or "grassland" or "heath" or "moor" or "scrub" or "wetland" => GeoFeatureType.Plain,
+                "wood" or "tree_row" => GeoFeatureType.Forest,
+                "bare_rock" or "rock" or "scree" => GeoFeatureType.Mountains,
+                "beach" or "sand" => GeoFeatureType.Desert,
+                "water" => GeoFeatureType.Water,
+                _ => GeoFeatureType.Unknown
+            };
         }
 
         ScreenCoordinates = new PointF[c.Length];
         for (var i = 0; i < c.Length; i++)
-            ScreenCoordinates[i] = new PointF((float)MercatorProjection.lonToX(c[i].Longitude),
-                (float)MercatorProjection.latToY(c[i].Latitude));
+        {
+            ScreenCoordinates[i] = new PointF(
+                (float)MercatorProjection.lonToX(c[i].Longitude),
+                (float)MercatorProjection.latToY(c[i].Latitude)
+            );
+        }
     }
+
 }
 
 public struct Railway : BaseShape
@@ -202,7 +166,7 @@ public struct PopulatedPlace : BaseShape
         for (var i = 0; i < c.Length; i++)
             ScreenCoordinates[i] = new PointF((float)MercatorProjection.lonToX(c[i].Longitude),
                 (float)MercatorProjection.latToY(c[i].Latitude));
-        var name = feature.Properties.FirstOrDefault(x => x.Key == "name").Value;
+        var name = feature.Properties.FirstOrDefault(x => x.Key == MapFeatureData.Transformer.Name).Value;
 
         if (feature.Label.IsEmpty)
         {
@@ -224,7 +188,7 @@ public struct PopulatedPlace : BaseShape
             return false;
         }
         foreach (var entry in feature.Properties)
-            if (entry.Key.StartsWith("place"))
+            if (entry.Key == MapFeatureData.Transformer.Place)
             {
                 if (entry.Value.StartsWith("city") || entry.Value.StartsWith("town") ||
                     entry.Value.StartsWith("locality") || entry.Value.StartsWith("hamlet"))
@@ -264,11 +228,11 @@ public struct Border : BaseShape
         var foundLevel = false;
         foreach (var entry in feature.Properties)
         {
-            if (entry.Key.StartsWith("boundary") && entry.Value.StartsWith("administrative"))
+            if (entry.Key == MapFeatureData.Transformer.Boundary && entry.Value.StartsWith("administrative"))
             {
                 foundBoundary = true;
             }
-            if (entry.Key.StartsWith("admin_level") && entry.Value == "2")
+            if (entry.Key == MapFeatureData.Transformer.Admin_level && entry.Value == "2")
             {
                 foundLevel = true;
             }

@@ -17,14 +17,33 @@ public delegate bool MapFeatureDelegate(MapFeatureData featureData);
 /// <summary>
 ///     Aggregation of all the data needed to render a map feature
 /// </summary>
+
 public readonly ref struct MapFeatureData
 {
     public long Id { get; init; }
 
+    public enum Transformer
+    {
+        Admin_level = 0,
+        Amenity = 1,
+        Boundary = 2,
+        Building = 3,
+        Highway = 4,
+        Landuse = 5,
+        Leisure = 6,
+        Name = 7,
+        Natural = 8,
+        Place = 9,
+        Railway = 10,
+        Water = 11,
+        Waterway = 12,
+        Water_point = 13
+    }
+
     public GeometryType Type { get; init; }
     public ReadOnlySpan<char> Label { get; init; }
     public ReadOnlySpan<Coordinate> Coordinates { get; init; }
-    public Dictionary<string, string> Properties { get; init; }
+    public Dictionary<Transformer, string> Properties { get; init; }
 }
 
 /// <summary>
@@ -64,8 +83,21 @@ public unsafe class DataFile : IDisposable
         _mma = _mmf.CreateViewAccessor();
         _mma.SafeMemoryMappedViewHandle.AcquirePointer(ref _ptr);
         _fileHeader = (FileHeader*)_ptr;
-    }
 
+    }
+    public static string UpperC(string input) =>
+        input switch
+        {
+            null => throw new ArgumentNullException(nameof(input)),
+            "" => throw new ArgumentException($"{nameof(input)} cannot be empty", nameof(input)),
+            _ => string.Concat(input[0].ToString().ToUpper(), input.AsSpan(1))
+        };
+
+
+    public string[] Objects = new[] {
+        "highway", "water", "boundary", "admin_level", "place", "railway", "natural", "landuse", "building", "leisure",
+        "amenity", "name", "waterway", "water_point"
+    };
     public void Dispose()
     {
         // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
@@ -118,10 +150,10 @@ public unsafe class DataFile : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-    private ReadOnlySpan<Coordinate> GetCoordinates(ulong coordinateOffset, int ithCoordinate, int coordinateCount)
-    {
-        return new ReadOnlySpan<Coordinate>(_ptr + coordinateOffset + ithCoordinate * CoordinateSizeInBytes, coordinateCount);
-    }
+        private ReadOnlySpan<Coordinate> GetCoordinates(ulong coordinateOffset, int ithCoordinate, int coordinateCount)
+        {
+            return new ReadOnlySpan<Coordinate>(_ptr + coordinateOffset + ithCoordinate * CoordinateSizeInBytes, coordinateCount);
+        }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     private void GetString(ulong stringsOffset, ulong charsOffset, int i, out ReadOnlySpan<char> value)
@@ -181,11 +213,28 @@ public unsafe class DataFile : IDisposable
 
                 if (isFeatureInBBox)
                 {
-                    var properties = new Dictionary<string, string>(feature->PropertyCount);
+                    var properties = new Dictionary<MapFeatureData.Transformer, string>(feature->PropertyCount);
                     for (var p = 0; p < feature->PropertyCount; ++p)
                     {
                         GetProperty(header.Tile.Value.StringsOffsetInBytes, header.Tile.Value.CharactersOffsetInBytes, p * 2 + feature->PropertiesOffset, out var key, out var value);
-                        properties.Add(key.ToString(), value.ToString());
+
+                        if (Objects.Contains(key.ToString()))
+                        {
+                            try
+                            {
+
+                                MapFeatureData.Transformer keyEnum =
+                                    (MapFeatureData.Transformer)Enum.Parse(
+                                        typeof(MapFeatureData.Transformer),
+                                        UpperC(key.ToString()));
+                                properties.Add(keyEnum, value.ToString());
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine(e.Message);
+                                continue;
+                            }
+                        }
                     }
 
                     if (!action(new MapFeatureData
@@ -197,7 +246,7 @@ public unsafe class DataFile : IDisposable
                             Properties = properties
                         }))
                     {
-                        break;
+                        return;
                     }
                 }
             }
